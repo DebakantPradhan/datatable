@@ -18,7 +18,7 @@ const DataTable = () => {
     status: ''
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const [itemsPerPage, setItemsPerPage] = useState(5); // State for items per page
 
   // Filtering logic
   const filteredData = useMemo(() => {
@@ -55,7 +55,7 @@ const DataTable = () => {
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return sortedData.slice(startIndex, startIndex + itemsPerPage);
-  }, [sortedData, currentPage]);
+  }, [sortedData, currentPage, itemsPerPage]);
 
   // Sorting handler
   const handleSort = (key) => {
@@ -108,6 +108,21 @@ const DataTable = () => {
             {uniqueStatuses.map(status => (
               <option key={status} value={status}>{status}</option>
             ))}
+          </select>
+
+          {/* Records per page dropdown */}
+          <select
+            value={itemsPerPage}
+            onChange={(e) => {
+              setItemsPerPage(Number(e.target.value));
+              setCurrentPage(1); // Reset to the first page when changing items per page
+            }}
+            className="px-3 py-2 border rounded-md"
+          >
+            <option value={5}>5 per page</option>
+            <option value={10}>10 per page</option>
+            <option value={20}>20 per page</option>
+            <option value={50}>50 per page</option>
           </select>
         </div>
 
