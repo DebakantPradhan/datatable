@@ -1,196 +1,210 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 
-// Sample data - replace with your actual data
-const initialData = [
+const USERS_DATA = [
   { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Admin', status: 'Active' },
   { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'User', status: 'Inactive' },
-  { id: 3, name: 'Bob Johnson', email: 'bob@example.com', role: 'Manager', status: 'Active' },
-  // Add more sample data
+  { id: 3, name: 'Alice Johnson', email: 'alice@example.com', role: 'Admin', status: 'Active' },
+  { id: 4, name: 'Charlie Brown', email: 'charlie@example.com', role: 'User', status: 'Inactive' },
+  { id: 5, name: 'David Wilson', email: 'david@example.com', role: 'Admin', status: 'Active' },
+  { id: 6, name: 'Eve Davis', email: 'eve@example.com', role: 'User', status: 'Active' },
+  { id: 7, name: 'Frank Miller', email: 'frank@example.com', role: 'Admin', status: 'Inactive' }
 ];
 
+const PAGE_SIZE_OPTIONS = [2, 5, 10, 25];
+
 const DataTable = () => {
-  // State management
-  const [data, setData] = useState(initialData);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState({ key: 'id', direction: 'asc' });
-  const [filters, setFilters] = useState({
+  const [searchQuery, setSearchQuery] = useState('');
+  const [pageNum, setPageNum] = useState(0);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  const [sortBy, setSortBy] = useState({ field: '', order: 'asc' });
+  const [activeFilters, setActiveFilters] = useState({
     role: '',
     status: ''
   });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5); // State for items per page
 
-  // Filtering logic
-  const filteredData = useMemo(() => {
-    return data.filter(item => {
-      // Search across all fields
-      const matchesSearch = Object.values(item).some(value => 
-        String(value).toLowerCase().includes(searchTerm.toLowerCase())
+  const filterData = useCallback((data) => {
+    let result = [...data];
+    
+    if (searchQuery) {
+      result = result.filter(row => 
+        Object.values(row).some(val => 
+          val.toString().toLowerCase().includes(searchQuery.toLowerCase())
+        )
       );
-
-      // Role filter
-      const matchesRoleFilter = !filters.role || item.role === filters.role;
-
-      // Status filter
-      const matchesStatusFilter = !filters.status || item.status === filters.status;
-
-      return matchesSearch && matchesRoleFilter && matchesStatusFilter;
-    });
-  }, [data, searchTerm, filters]);
-
-  // Sorting logic
-  const sortedData = useMemo(() => {
-    return [...filteredData].sort((a, b) => {
-      if (a[sortConfig.key] < b[sortConfig.key]) {
-        return sortConfig.direction === 'asc' ? -1 : 1;
+    }
+    
+    Object.entries(activeFilters).forEach(([key, value]) => {
+      if (value) {
+        result = result.filter(row => row[key] === value);
       }
-      if (a[sortConfig.key] > b[sortConfig.key]) {
-        return sortConfig.direction === 'asc' ? 1 : -1;
-      }
-      return 0;
     });
-  }, [filteredData, sortConfig]);
+    
+    return result;
+  }, [searchQuery, activeFilters]);
 
-  // Pagination logic
-  const paginatedData = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return sortedData.slice(startIndex, startIndex + itemsPerPage);
-  }, [sortedData, currentPage, itemsPerPage]);
+  const handlePageChange = (newPage) => {
+    const lastPage = Math.ceil(filterData(USERS_DATA).length / pageSize) - 1;
+    if (newPage < 0 || newPage > lastPage) return;
+    setPageNum(newPage);
+  };
 
-  // Sorting handler
-  const handleSort = (key) => {
-    setSortConfig(prevConfig => ({
-      key,
-      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(Number(newSize));
+    setPageNum(0);
+  };
+
+  const handleSort = (field) => {
+    setSortBy(prev => ({
+      field,
+      order: prev.field === field && prev.order === 'asc' ? 'desc' : 'asc'
     }));
   };
 
-  // Unique values for filters
-  const uniqueRoles = [...new Set(data.map(item => item.role))];
-  const uniqueStatuses = [...new Set(data.map(item => item.status))];
+  const getPageData = () => {
+    try {
+      let filtered = filterData(USERS_DATA);
+      
+      if (sortBy.field) {
+        filtered.sort((a, b) => {
+          const aVal = a[sortBy.field];
+          const bVal = b[sortBy.field];
+          
+          if (typeof aVal === 'string') {
+            return sortBy.order === 'asc' 
+              ? aVal.localeCompare(bVal)
+              : bVal.localeCompare(aVal);
+          }
+          
+          return sortBy.order === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+      }
+      
+      const start = pageNum * pageSize;
+      return filtered.slice(start, start + pageSize);
+    } catch (err) {
+      console.error('Failed to process table data:', err);
+      return [];
+    }
+  };
 
-  // Total pages calculation
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const filteredData = filterData(USERS_DATA);
+  const totalPages = Math.ceil(filteredData.length / pageSize);
+
+  // Get unique values for filters
+  const roles = [...new Set(USERS_DATA.map(item => item.role))];
+  const statuses = [...new Set(USERS_DATA.map(item => item.status))];
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        {/* Search and Filters */}
-        <div className="p-4 flex space-x-4">
-          {/* Search Input */}
-          <input 
-            type="text" 
-            placeholder="Search..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-grow px-3 py-2 border rounded-md"
+    <div className="mt-4">
+      <div className="mb-4 flex gap-3 items-center justify-between">
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search table..."
+            className="px-3 py-1 border rounded w-64"
           />
-
-          {/* Role Filter */}
+          
           <select 
-            value={filters.role}
-            onChange={(e) => setFilters(prev => ({ ...prev, role: e.target.value }))}
-            className="px-3 py-2 border rounded-md"
+            value={activeFilters.role}
+            onChange={e => setActiveFilters(prev => ({
+              ...prev,
+              role: e.target.value
+            }))}
+            className="px-2 border rounded"
           >
             <option value="">All Roles</option>
-            {uniqueRoles.map(role => (
+            {roles.map(role => (
               <option key={role} value={role}>{role}</option>
             ))}
           </select>
 
-          {/* Status Filter */}
           <select 
-            value={filters.status}
-            onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-            className="px-3 py-2 border rounded-md"
+            value={activeFilters.status}
+            onChange={e => setActiveFilters(prev => ({
+              ...prev,
+              status: e.target.value
+            }))}
+            className="px-2 border rounded"
           >
             <option value="">All Statuses</option>
-            {uniqueStatuses.map(status => (
+            {statuses.map(status => (
               <option key={status} value={status}>{status}</option>
             ))}
           </select>
-
-          {/* Records per page dropdown */}
-          <select
-            value={itemsPerPage}
-            onChange={(e) => {
-              setItemsPerPage(Number(e.target.value));
-              setCurrentPage(1); // Reset to the first page when changing items per page
-            }}
-            className="px-3 py-2 border rounded-md"
-          >
-            <option value={5}>5 per page</option>
-            <option value={10}>10 per page</option>
-            <option value={20}>20 per page</option>
-            <option value={50}>50 per page</option>
-          </select>
         </div>
 
-        {/* Data Table */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Records per page:</span>
+          <select
+            value={pageSize}
+            onChange={e => handlePageSizeChange(e.target.value)}
+            className="px-2 py-1 border rounded"
+          >
+            {PAGE_SIZE_OPTIONS.map(size => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="border rounded overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-200">
+          <thead className="bg-gray-100">
             <tr>
-              {Object.keys(initialData[0]).map(key => (
+              {Object.keys(USERS_DATA[0]).map(field => (
                 <th 
-                  key={key} 
-                  onClick={() => handleSort(key)}
-                  className="p-3 text-left cursor-pointer hover:bg-gray-300 transition"
+                  key={field}
+                  onClick={() => handleSort(field)}
+                  className="p-2 text-left cursor-pointer hover:bg-gray-200"
                 >
-                  {key.charAt(0).toUpperCase() + key.slice(1)}
-                  {sortConfig.key === key && (
-                    <span className="ml-2">
-                      {sortConfig.direction === 'asc' ? '▲' : '▼'}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {field}
+                    {sortBy.field === field && (
+                      <span>{sortBy.order === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {paginatedData.map(row => (
-              <tr key={row.id} className="border-b hover:bg-gray-100">
-                {Object.values(row).map((value, index) => (
-                  <td key={index} className="p-3">{value}</td>
+            {getPageData().map(row => (
+              <tr 
+                key={row.id} 
+                className="border-t hover:bg-gray-50"
+              >
+                {Object.values(row).map((cell, i) => (
+                  <td key={i} className="p-2">{cell}</td>
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
 
-        {/* Pagination */}
-        <div className="p-4 flex justify-between items-center">
-          <div>
-            Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
-            {Math.min(currentPage * itemsPerPage, filteredData.length)} of{' '}
-            {filteredData.length} entries
-          </div>
-          <div className="flex space-x-2">
-            <button 
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className="px-4 py-2 border rounded-md disabled:opacity-50"
-            >
-              Previous
-            </button>
-            {[...Array(totalPages)].map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentPage(index + 1)}
-                className={`px-4 py-2 border rounded-md ${
-                  currentPage === index + 1 ? 'bg-blue-500 text-white' : ''
-                }`}
-              >
-                {index + 1}
-              </button>
-            ))}
-            <button 
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 border rounded-md disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
+      <div className="mt-4 flex justify-between items-center">
+        <span className="text-sm text-gray-600">
+          Showing {Math.min(pageNum * pageSize + 1, filteredData.length)} to{' '}
+          {Math.min((pageNum + 1) * pageSize, filteredData.length)} of {filteredData.length} entries
+        </span>
+        
+        <div className="flex gap-2">
+          <button
+            onClick={() => handlePageChange(pageNum - 1)}
+            disabled={pageNum === 0}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => handlePageChange(pageNum + 1)}
+            disabled={pageNum >= totalPages - 1}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            Next
+          </button>
         </div>
       </div>
     </div>
